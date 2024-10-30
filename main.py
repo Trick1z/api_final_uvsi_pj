@@ -14,8 +14,10 @@ from datetime import datetime
 from dotenv import load_dotenv
 import os
 
+from dateutil import parser
+import pytz
 
-load_dotenv()
+
 
 
 # get DB
@@ -634,7 +636,21 @@ class add_product(BaseModel):
 async def add_product(data: add_product):
     data.RECORD_STATUS = "A"
     data.DEL_FRAG = "N"
+    dop = data.P_DOP
+    
+    def convertTime(date:String):
+        utc_time = parser.isoparse(date)
 
+        # ตั้งค่า timezone เป็น UTC
+        utc_time = utc_time.replace(tzinfo=pytz.UTC)
+
+        # แปลงเป็น timezone ที่ต้องการ (เช่น เวลาประเทศไทย)
+        local_time = utc_time.astimezone(pytz.timezone("Asia/Bangkok"))
+        
+        return local_time
+        
+    res_dop = convertTime(dop)
+    
     CREATE_DATE = datetime.now()
     UPDATE_DATE = datetime.now()
 
@@ -649,7 +665,7 @@ async def add_product(data: add_product):
             data.CATEGORY_ID,
             data.STATUS_ID,
             data.P_PRICE,
-            data.P_DOP,
+            res_dop,
             data.P_BAND,
             data.P_SERIALNUMBER,
             data.P_EQUIPMENTNUMBER,
@@ -689,11 +705,26 @@ class putProduct(BaseModel):
 
 @app.put("/put_product/{id}")
 async def put_status(id: int, data: putProduct):
+    # def convertTime(date:String):
+    #     utc_time = parser.isoparse(date)
+
+    #     # ตั้งค่า timezone เป็น UTC
+    #     utc_time = utc_time.replace(tzinfo=pytz.UTC)
+
+    #     # แปลงเป็น timezone ที่ต้องการ (เช่น เวลาประเทศไทย)
+    #     local_time = utc_time.astimezone(pytz.timezone("Asia/Bangkok"))
+        
+    #     return local_time
+    
+    
 
     update_time = datetime.now()
-
     cnx = get_DB()
     cursor = cnx.cursor()
+    
+    # res_dop = convertTime(data.P_DOP)
+    
+    
 
     sql_update_query = """
     UPDATE product SET 
@@ -716,7 +747,7 @@ async def put_status(id: int, data: putProduct):
             data.CATEGORY_ID,
             data.STATUS_ID,
             update_time,
-            id,
+            id
         ),
     )
 
