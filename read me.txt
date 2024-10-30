@@ -1,0 +1,15 @@
+python.exe -m pip install --upgrade pip
+
+python -m venv myenv
+myenv\Scripts\activate  
+pip install fastapi uvicorn
+pip install mysql-connector-python
+pip install sqlalchemy
+pip install fastapi
+pip install "fastapi[standard]"
+pip install python-dotenv
+
+# .env
+MYSQL_HOST = localhost
+MYSQL_username = root
+MYSQL_DATABASE = mydb
