@@ -17,6 +17,7 @@ import os
 from dateutil import parser
 import pytz
 
+load_dotenv()
 
 
 
