@@ -807,7 +807,7 @@ def get_student():
                 "STUDENT_NAME": row[1],
                 "STUDENT_CODE": row[2],
                 "STUDENT_YEAR": row[3],
-                "STUDENT_FACULITY": row[4],
+                "STUDENT_FACULTY": row[4],
                 "STUDENT_MAJOR": row[5],
                 "RECORD_STATUS": row[6],
                 "DEL_FRAG": row[7],
@@ -847,7 +847,7 @@ def get_student(code: str):
                 "STUDENT_NAME": row[1],
                 "STUDENT_CODE": row[2],
                 "STUDENT_YEAR": row[3],
-                "STUDENT_FACULITY": row[4],
+                "STUDENT_FACULTY": row[4],
                 "STUDENT_MAJOR": row[5],
                 "RECORD_STATUS": row[6],
                 "DEL_FRAG": row[7],
@@ -868,7 +868,7 @@ class StudentInfo(BaseModel):
     STUDENT_NAME: str
     STUDENT_CODE: str
     STUDENT_YEAR: str
-    STUDENT_FACULITY: str
+    STUDENT_FACULTY: str
     STUDENT_MAJOR: str
     RECORD_STATUS: str
     DEL_FRAG: str
