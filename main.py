@@ -42,22 +42,22 @@ def get_DB():
 
 
 app = FastAPI()
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["http://localhost:4200"],  # Angular's dev server runs on port 4200
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://final-example-vuzz.onrender.com"],  # ระบุโดเมนที่อนุญาต
+    allow_origins=["http://localhost:4200"],  # Angular's dev server runs on port 4200
     allow_credentials=True,
-    allow_methods=["*"],  # อนุญาตทุกวิธี
-    allow_headers=["*"],  # อนุญาตทุก Header
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["https://final-example-vuzz.onrender.com"],  # ระบุโดเมนที่อนุญาต
+#     allow_credentials=True,
+#     allow_methods=["*"],  # อนุญาตทุกวิธี
+#     allow_headers=["*"],  # อนุญาตทุก Header
+# )
 
 
 
