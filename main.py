@@ -23,11 +23,20 @@ load_dotenv()
 
 # get DB
 def get_DB():
+    # connector = mysql.connector.connect(
+    #     host=os.getenv("MYSQL_HOST"),
+    #     user=os.getenv("MYSQL_username"),
+    #     database=os.getenv("MYSQL_DATABASE"),
+    # )
+    
     connector = mysql.connector.connect(
-        host=os.getenv("MYSQL_HOST"),
-        user=os.getenv("MYSQL_username"),
-        database=os.getenv("MYSQL_DATABASE"),
+        host= 'b2t8evbt9ejmhs0fzei9-mysql.services.clever-cloud.com',
+        user='uhkrxjaisowx5ovh',
+        password = 'oAM9VHaA87zIrVQfeJjj',
+        database='b2t8evbt9ejmhs0fzei9'
     )
+    
+    
 
     return connector
 
