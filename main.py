@@ -30,10 +30,10 @@ def get_DB():
     # )
     
     connector = mysql.connector.connect(
-        host= 'b2t8evbt9ejmhs0fzei9-mysql.services.clever-cloud.com',
-        user='uhkrxjaisowx5ovh',
-        password = 'oAM9VHaA87zIrVQfeJjj',
-        database='b2t8evbt9ejmhs0fzei9'
+        host= 'blista7kyg5hyq8lrlyp-mysql.services.clever-cloud.com',
+        user='urgnzyqi63dc81zs',
+        password = 'bgMpfvaqJi9qBRXwZejS',
+        database='blista7kyg5hyq8lrlyp'
     )
     
     
