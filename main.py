@@ -52,7 +52,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://project-test-4300d.web.app/#/login"],  # Angular's dev server runs on port 4200
+    allow_origins=["https://project-test-4300d.web.app"],  # Angular's dev server runs on port 4200
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
