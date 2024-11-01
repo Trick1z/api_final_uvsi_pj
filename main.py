@@ -1115,7 +1115,7 @@ def get_test(id: int):
     cnx = get_DB()
     cursor = cnx.cursor()
     # query = "SELECT * FROM product WHERE CATEGORY_ID = %s and STATUS_ID = 6"
-    query = "SELECT * FROM product WHERE del_frag = 'N' and STATUS_ID = 6 and RECORD_STATUS = 'A'; and CATEGORY_ID = %s "
+    query = "SELECT * FROM product WHERE del_frag = 'N' and STATUS_ID = 6 and RECORD_STATUS = 'A' and CATEGORY_ID = %s "
     
     cursor.execute(query, (id,))
 
