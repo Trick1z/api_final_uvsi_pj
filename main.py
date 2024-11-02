@@ -585,11 +585,10 @@ def get_test(id: int):
     cursor.close()
     cnx.close()
 
-    lst = []
+    lst = {}
 
     for row in rows:
-        lst.append(
-            {
+        lst ={
                 "P_ID": row[0],
                 "P_NAME": row[1],
                 "P_DESCRIPTION": row[2],
@@ -606,7 +605,8 @@ def get_test(id: int):
                 "CREATE_DATE": row[13],
                 "UPDATE_DATE": row[14],
             }
-        )
+            
+    
 
     return lst
 
