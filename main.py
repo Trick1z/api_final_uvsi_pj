@@ -578,7 +578,7 @@ async def put_status(id: int, param: param):
 def get_test(id: int):
     cnx = get_DB()
     cursor = cnx.cursor()
-    query = "SELECT * FROM product WHERE P_ID = %s and RECORD_STATUS = 'A'"
+    query = "SELECT * FROM product WHERE P_ID = %s and RECORD_STATUS = 'A' and DEL_FRAG = 'N'"
     cursor.execute(query, (id,))
 
     rows = cursor.fetchall()
@@ -588,7 +588,7 @@ def get_test(id: int):
     lst = {}
 
     for row in rows:
-        lst ={
+        lst = {
                 "P_ID": row[0],
                 "P_NAME": row[1],
                 "P_DESCRIPTION": row[2],
