@@ -606,7 +606,7 @@ async def put_status(id: int, param: param):
 def get_test(id: int):
     cnx = get_DB()
     cursor = cnx.cursor()
-    query = "SELECT * FROM product WHERE P_ID = %s and RECORD_STATUS = 'A'"
+    query = "SELECT * FROM product WHERE P_ID = %s and RECORD_STATUS = 'A' and DEL_FRAG = 'N'"
     cursor.execute(query, (id,))
 
     rows = cursor.fetchall()
