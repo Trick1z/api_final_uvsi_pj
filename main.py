@@ -1,6 +1,6 @@
 from typing import Union
 from typing import List, Optional
-from fastapi import FastAPI, HTTPException, Depends, Response,status
+from fastapi import FastAPI, HTTPException, Depends,File, Response,status
 from fastapi.middleware.cors import CORSMiddleware
 
 from fastapi.responses import JSONResponse
@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from datetime import datetime
 from dotenv import load_dotenv
 import os
+import base64
 
 from dateutil import parser
 import pytz
@@ -504,12 +505,49 @@ def get_test():
 # -----------------------------------------------------[GET] PRODUCT BY CATEGORY ID---------------------------------------
 
 
-@app.get("/get_product/status")
+@app.get("/get_product/status/")
 def get_test():
     cnx = get_DB()
     cursor = cnx.cursor()
     query = "SELECT * FROM product WHERE del_frag = 'N' and STATUS_ID = 6 and RECORD_STATUS = 'A';  "  # หา product ที่่ว่าง
     cursor.execute(query)
+
+    rows = cursor.fetchall()
+    cursor.close()
+    cnx.close()
+
+    lst = []
+
+    for row in rows:
+        lst.append(
+            {
+                "P_ID": row[0],
+                "P_NAME": row[1],
+                "P_DESCRIPTION": row[2],
+                "P_DOP": row[3],
+                "P_PRICE": row[4],
+                "P_SERIALNUMBER": row[5],
+                "P_EQUIPMENTNUMBER": row[6],
+                "P_BAND": row[7],
+                "CATEGORY_ID": row[8],
+                "STATUS_ID": row[9],
+                "STUDENT_ID": row[10],
+                "RECORD_STATUS": row[11],
+                "DEL_FRAG": row[12],
+                "CREATE_DATE": row[13],
+                "UPDATE_DATE": row[14],
+            }
+        )
+
+    return lst
+
+
+@app.get("/get_product/status/{id}")
+def get_pd_7(id:int):
+    cnx = get_DB()
+    cursor = cnx.cursor()
+    query = "SELECT * FROM product WHERE del_frag = 'N' and STATUS_ID = %s and RECORD_STATUS = 'A';  "  # หา product ที่่ว่าง
+    cursor.execute(query,(id,))
 
     rows = cursor.fetchall()
     cursor.close()
@@ -613,11 +651,10 @@ def get_test(id: int):
     cursor.close()
     cnx.close()
 
-    lst = []
+    lst = {}
 
     for row in rows:
-        lst.append(
-            {
+        lst = {
                 "P_ID": row[0],
                 "P_NAME": row[1],
                 "P_DESCRIPTION": row[2],
@@ -634,7 +671,8 @@ def get_test(id: int):
                 "CREATE_DATE": row[13],
                 "UPDATE_DATE": row[14],
             }
-        )
+            
+    
 
     return lst
 
@@ -659,12 +697,12 @@ class add_product(BaseModel):
     DEL_FRAG: str
     CREATE_DATE: datetime
     UPDATE_DATE: datetime
+    IMG:str
 
 
 @app.post("/add_product")
 async def add_product(data: add_product):
-    data.RECORD_STATUS = "A"
-    data.DEL_FRAG = "N"
+    
     dop = data.P_DOP
     
     def convertTime(date:String):
@@ -680,39 +718,66 @@ async def add_product(data: add_product):
         
     res_dop = convertTime(dop)
     
-    CREATE_DATE = datetime.now()
-    UPDATE_DATE = datetime.now()
+    def add_products():
+        data.RECORD_STATUS = "A"
+        data.DEL_FRAG = "N"
+        CREATE_DATE = datetime.now()
+        UPDATE_DATE = datetime.now()
 
-    cnx = get_DB()
-    cursor = cnx.cursor()
+        cnx = get_DB()
+        cursor = cnx.cursor()
 
-    query = "INSERT INTO product (P_NAME ,CATEGORY_ID,STATUS_ID,P_PRICE,P_DOP,P_BAND,P_SERIALNUMBER,P_EQUIPMENTNUMBER,P_DESCRIPTION,STUDENT_ID,RECORD_STATUS,DEL_FRAG,CREATE_DATE ,UPDATE_DATE) VALUES ( %s ,%s,%s,%s,%s,%s,%s ,%s,%s,%s,%s,%s,%s,%s)"
-    cursor.execute(
-        query,
-        (
-            data.P_NAME,
-            data.CATEGORY_ID,
-            data.STATUS_ID,
-            data.P_PRICE,
-            res_dop,
-            data.P_BAND,
-            data.P_SERIALNUMBER,
-            data.P_EQUIPMENTNUMBER,
-            data.P_DESCRIPTION,
-            data.STUDENT_ID,
-            data.RECORD_STATUS,
-            data.DEL_FRAG,
-            CREATE_DATE,
-            UPDATE_DATE,
-        ),
-    )
+        query = "INSERT INTO product (P_NAME ,CATEGORY_ID,STATUS_ID,P_PRICE,P_DOP,P_BAND,P_SERIALNUMBER,P_EQUIPMENTNUMBER,P_DESCRIPTION,STUDENT_ID,RECORD_STATUS,DEL_FRAG,CREATE_DATE ,UPDATE_DATE) VALUES ( %s ,%s,%s,%s,%s,%s,%s ,%s,%s,%s,%s,%s,%s,%s)"
+        cursor.execute(
+            query,
+            (
+                data.P_NAME,
+                data.CATEGORY_ID,
+                data.STATUS_ID,
+                data.P_PRICE,
+                res_dop,
+                data.P_BAND,
+                data.P_SERIALNUMBER,
+                data.P_EQUIPMENTNUMBER,
+                data.P_DESCRIPTION,
+                data.STUDENT_ID,
+                data.RECORD_STATUS,
+                data.DEL_FRAG,
+                CREATE_DATE,
+                UPDATE_DATE,
+            ),
+        )
 
-    cnx.commit()
-    test_id = cursor.lastrowid
-    cursor.close()
-    cnx.close()
+        cnx.commit()
+        res_id = cursor.lastrowid
+        cursor.close()
+        cnx.close()
+        
+        return res_id
+    
 
-    return {"id": test_id, "status": 200}
+    def add_img(name:str ,id:int):
+    
+        cnx = get_DB()
+        cursor = cnx.cursor()
+
+        query = "INSERT INTO img (IMG_NAME,P_ID) VALUES ( %s,%s)"
+        cursor.execute(query,(name,id),)
+
+        cnx.commit()
+        test_id = cursor.lastrowid
+        cursor.close()
+        cnx.close()
+
+        return {"id": test_id, "status": 200}
+        
+    
+    res_id = add_products();    
+    add_img(data.IMG , res_id)
+    
+    
+
+    return {"id": res_id,"msg":'Success', "status": 200}
 
 
 # ----------------------------------------------------- END [POST] PRODUCT ---------------------------------------
@@ -856,7 +921,7 @@ def get_student():
 def get_student(code: str):
     cnx = get_DB()
     cursor = cnx.cursor()
-    query = "SELECT * FROM student WHERE STUDENT_CODE = %s and RECORD_STATUS = 'A'"
+    query = "SELECT * FROM student WHERE STUDENT_CODE = %s and RECORD_STATUS = 'A' and DEL_FRAG ='N'"
     cursor.execute(query, (code,))
 
     rows = cursor.fetchall()
@@ -1100,7 +1165,7 @@ def get_borrow():
 def get_test(id: int):
     cnx = get_DB()
     cursor = cnx.cursor()
-    query = "SELECT * FROM product WHERE CATEGORY_ID = %s and RECORD_STATUS = 'A'"
+    query = "SELECT * FROM product WHERE CATEGORY_ID = %s and RECORD_STATUS = 'A'  and DEL_FRAG ='N'"
     cursor.execute(query, (id,))
 
     rows = cursor.fetchall()
@@ -1410,3 +1475,46 @@ def get_count(text:str):
     
     #testpush
     
+    
+    # IMG
+    
+    # post img 
+    
+    
+@app.get("/get_img/{id}")
+def get_imgs(id: int):
+    cnx = get_DB()
+    cursor = cnx.cursor()
+    
+    query = "SELECT * FROM img WHERE P_ID = %s and RECORD_STATUS = 'A' and DEL_FRAG = 'N'"
+    cursor.execute(query, (id,))
+
+    rows = cursor.fetchall()
+    cursor.close()
+    cnx.close()
+
+    lst = {}
+
+    for row in rows:
+        lst = {
+                "IMG_ID": row[0],
+                "IMG_NAME": row[1],
+                "P_ID": row[2],
+                "RECORD_STATUS": row[3],
+                "DEL_FRAG": row[4],
+                "CREATE_DATE": row[5],
+                "UPDATE_DATE": row[6],
+            }
+            
+
+    return lst
+
+
+# @app.get('/conv')
+# def conv():
+#     img_data = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAgEASABIAAD..."
+#     img_data = img_data.split(",")[1]  # ตัดข้อมูล header
+#     with open("output.jpg", "wb") as f:
+#         f.write(base64.b64decode(img_data))
+
+
