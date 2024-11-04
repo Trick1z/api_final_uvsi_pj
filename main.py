@@ -505,7 +505,7 @@ def get_test():
 # -----------------------------------------------------[GET] PRODUCT BY CATEGORY ID---------------------------------------
 
 
-@app.get("/get_product/status/")
+@app.get("/get_product/status")
 def get_test():
     cnx = get_DB()
     cursor = cnx.cursor()
