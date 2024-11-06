@@ -757,24 +757,24 @@ async def add_product(data: add_product):
         return res_id
     
 
-    def add_img(name:str ,id:int):
+    # def add_img(name:str ,id:int):
     
-        cnx = get_DB()
-        cursor = cnx.cursor()
+    #     cnx = get_DB()
+    #     cursor = cnx.cursor()
 
-        query = "INSERT INTO img (IMG_NAME,P_ID) VALUES ( %s,%s)"
-        cursor.execute(query,(name,id),)
+    #     query = "INSERT INTO img (IMG_NAME,P_ID) VALUES ( %s,%s)"
+    #     cursor.execute(query,(name,id),)
 
-        cnx.commit()
-        test_id = cursor.lastrowid
-        cursor.close()
-        cnx.close()
+    #     cnx.commit()
+    #     test_id = cursor.lastrowid
+    #     cursor.close()
+    #     cnx.close()
 
-        return {"id": test_id, "status": 200}
+    #     return {"id": test_id, "status": 200}
         
     
     res_id = add_products();    
-    add_img(data.IMG , res_id)
+    # add_img(data.IMG , res_id)
     
     
 
