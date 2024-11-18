@@ -12,6 +12,8 @@ pip install fastapi
 pip install "fastapi[standard]"
 pip install python-dotenv
 
+#from pydantic import BaseModel
+
 # .env
 MYSQL_HOST = localhost
 MYSQL_username = root
