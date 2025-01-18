@@ -1,33 +1,43 @@
 from typing import Union
 from typing import List, Optional
-from fastapi import FastAPI, HTTPException, Depends,File, Response,status
+from fastapi import FastAPI, HTTPException, Depends, File, Response, status, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-
 from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-
-import mysql.connector  # type: ignore
+import pandas as pd
+import mysql.connector
+from mysql.connector import Error
 from pydantic import BaseModel
 from datetime import datetime
 from dotenv import load_dotenv
 import os
 import base64
-
 from dateutil import parser
 import pytz
-
+import io
+import csv
+from openpyxl import load_workbook
+import hashlib
+from bs4 import BeautifulSoup
 load_dotenv()
-
 
 
 # get DB
 def get_DB():
+    # deploy docker
+    # connector = mysql.connector.connect(
+    #     host='host.docker.internal',
+    #     user='root',
+    #     database='mydb'
+    # )
+
+    # localhost
     connector = mysql.connector.connect(
-        host=os.getenv("MYSQL_HOST"),
-        user=os.getenv("MYSQL_username"),
-        database=os.getenv("MYSQL_DATABASE"),
+        host='localhost',
+        user='root',
+        database='mydb'
     )
 
     return connector
@@ -36,1464 +46,556 @@ def get_DB():
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Angular's dev server runs on port 4200
+    # Angular's dev server runs on port 4200
+    allow_origins=["*", "http://localhost:4200"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 # app.add_middleware(
 #     CORSMiddleware,
-#     allow_origins=["http://localhost:4200"],  # Angular's dev server runs on port 4200
+#     allow_origins=["*"],  # Angular's dev server runs on port 4200
 #     allow_credentials=True,
 #     allow_methods=["*"],
 #     allow_headers=["*"],
 # )
 
 
-# test get
-
-# @app.get("/testdb")
-# def get_test():
-#     cnx = get_DB()
-#     cursor = cnx.cursor()
-#     query = "SELECT * FROM test WHERE del_frag = 'N'"
-#     cursor.execute(query)
-
-#     rows = cursor.fetchall()
-#     cursor.close()
-#     cnx.close()
-
-#     lst = []
-
-#     for row in rows:
-#         lst.append({
-#             "id" : row[0],
-#             "name" : row[1],
-#             "age" : row[2],
-#             "create_date" : row[3]
-#         })
-
-#     return lst
-
-
-# #test post
-# class test(BaseModel):
-#     CATEGORY_NAME :str
-#     CATEGORY_DESCRIPTION :str
-#     RECORD_STATUS :str
-#     DEL_FLAG :str
-#     CREATE_DATE : datetime
-#     UPDATE_DATE : datetime
-
-# @app.post("/testadd")
-# async def add(test : test):
-#     test.RECORD_STATUS = 'A'
-#     test.DEL_FLAG = 'N'
-
-#     cnx = get_DB()
-#     cursor = cnx.cursor()
-
-#     # query = "INSERT INTO test (CA) VALUES ( %s ,%s,%s,%s)"
-#     query ="INSERT INTO category (CATEGORY_NAME ,CATEGORY_DESCRIPTION ,RECORD_STATUS,DEL_FRAG,CREATE_DATE ,UPDATE_DATE) VALUES ( %s ,%s,%s,%s,%s,%s)"
-#     cursor.execute(query,(test.CATEGORY_NAME , test.CATEGORY_DESCRIPTION ,test.RECORD_STATUS,test.DEL_FLAG, test.CREATE_DATE ,test.UPDATE_DATE,))
-
-#     cnx.commit()
-#     test_id = cursor.lastrowid
-#     cursor.close()
-#     cnx.close()
-
-#     return {"id" : test_id , "status" : 200 }
-
-
-# #test del by put
-
-
-# @app.put("/put_test/{id}")
-# async def del_test(id: int):
-
-#     cnx = get_DB()
-#     cursor = cnx.cursor()
-
-
-#     sql_update_query = "UPDATE test SET del_frag = %s WHERE id = %s"
-#     cursor.execute(sql_update_query, ('Y', id))
-
-#     cnx.commit()
-#     cursor.close()
-#     cnx.close()
-
-#     return {"id" : id , "Status" : '200'}
-
-# # test del
-# @app.delete("/delete/{id}")
-# async def dele(id: int):
-
-#     cnx = get_DB()
-#     cursor = cnx.cursor()
-
-#     query = "DELETE FROM test WHERE id = %s"
-#     cursor.execute(query, (id,))  # ส่ง item_id เป็น tuple
-
-#     cnx.commit()
-#     cursor.close()
-#     cnx.close()
-
-#     return {"id" : id , "Status" : '200'}
-
-
-# -------------------------------------------------------CODE HERE ----------------------------------
-
-# -----------------------------------------------------[POST] CATEGORY---------------------------------------
-
-
-class add_category(BaseModel):
-    CATEGORY_NAME: str
-    CATEGORY_DESCRIPTION: str
-    RECORD_STATUS: str
-    DEL_FRAG: str
-    CREATE_DATE: datetime
-    UPDATE_DATE: datetime
-
-
-@app.post("/add_category")
-async def add_category(data: add_category):
-    data.RECORD_STATUS = "A"
-    data.DEL_FRAG = "N"
-
-    CREATE_DATE = datetime.now()
-    UPDATE_DATE = datetime.now()
+def query_get(order: String):
 
     cnx = get_DB()
-    cursor = cnx.cursor()
-
-    query = "INSERT INTO category (CATEGORY_NAME ,CATEGORY_DESCRIPTION ,RECORD_STATUS,DEL_FRAG,CREATE_DATE ,UPDATE_DATE) VALUES ( %s ,%s,%s,%s,%s,%s)"
-    cursor.execute(
-        query,
-        (
-            data.CATEGORY_NAME,
-            data.CATEGORY_DESCRIPTION,
-            data.RECORD_STATUS,
-            data.DEL_FRAG,
-            CREATE_DATE,
-            UPDATE_DATE,
-        ),
-    )
-
-    cnx.commit()
-    test_id = cursor.lastrowid
-    cursor.close()
-    cnx.close()
-
-    return {"id": test_id, "status": 200}
-
-
-# -----------------------------------------------------END [POST] CATEGORY ---------------------------------------
-
-# -----------------------------------------------------[GET] CATEGORY---------------------------------------
-
-
-@app.get("/get_category")
-def get_category(): 
-    cnx = get_DB()
-    cursor = cnx.cursor()
-    query = "SELECT * FROM category WHERE del_frag = 'N' and RECORD_STATUS = 'A';"
-    cursor.execute(query)
-
+    cursor = cnx.cursor(dictionary=True)
+    cursor.execute(order)
     rows = cursor.fetchall()
     cursor.close()
     cnx.close()
 
-    lst = []
-
-    for row in rows:
-        lst.append(
-            {
-                "CATEGORY_ID": row[0],
-                "CATEGORY_NAME": row[1],
-                "CATEGORY_DESCRIPTION": row[2],
-                "RECORD_STATUS": row[3],
-                "CREATE_DATE": row[5],
-                "UPDATE_DATE": row[6],
-            }
-        )
-
-    return lst
+    if not rows:
+        return None
+        # return {"message": 404, "data": None}
+    else:
+        return rows
 
 
-# ----------------------------------------------------- END [GET] CATEGORY---------------------------------------
+def query_post(order: String, data: tuple, res: str):
+    cnx = get_DB()
+    cursor = cnx.cursor(dictionary=True)
+    cursor.execute(order, data)
+
+    match res:
+        case "login":
+            rows = cursor.fetchall()
+            cursor.close()
+            cnx.close()
+            return {"message": 200, "data": rows}
+        case "update":
+            cnx.commit()
+            cursor.close()
+            cnx.close()
+            return {"message": 200, "data": None}
+        case "id":
+            cnx.commit()
+            id = cursor.lastrowid
+            cursor.close()
+            cnx.close()
+            return {"message": 200, "ID": id}
 
 
-# ----------------------------------------------------- [PUT_DATA] CATEGORY---------------------------------------
-class putCategory(BaseModel):
-    CATEGORY_NAME: str
-    CATEGORY_DESCRIPTION: str
-
-
-@app.put("/put_catedory/{id}")
-async def put_del_category(id: int, data: putCategory):
-
-    update_time = datetime.now()
-
+def query_put(order: String, data: tuple):
     cnx = get_DB()
     cursor = cnx.cursor()
-
-    sql_update_query = "UPDATE category SET CATEGORY_NAME = %s ,CATEGORY_DESCRIPTION = %s,UPDATE_DATE =%s WHERE CATEGORY_ID = %s"
-    cursor.execute(
-        sql_update_query,
-        (data.CATEGORY_NAME, data.CATEGORY_DESCRIPTION, update_time, id),
-    )
-
+    cursor.execute(order, (data))
     cnx.commit()
     cursor.close()
     cnx.close()
 
-    return {"id": id, "Status": "200"}
+    return {"message": 200, "status": "delete_frag has change"}
 
 
-# ----------------------------------------------------- END [PUT_DATA] CATEGORY---------------------------------------
+# API HERE GOES HERE
+# get
 
 
-# ----------------------------------------------------- [PUTDEL] CATEGORY--------------------------------------
-@app.put("/put_del_category/{id}")
-async def put_del_category(id: int):
+@app.get('/get.{table}')
+def get_data(table: str):
+    try:
+        res = query_get(
+            f"SELECT * FROM {table} WHERE DEL_FRAG = 'N' and RECORD_STATUS ='A'")
+        return res
+    except Exception as err:
+        return {"message": err, "status": "Something Went Wrong!"}
 
-    update_time = datetime.now()
 
-    cnx = get_DB()
-    cursor = cnx.cursor()
+@app.get('/get.product/{id}')
+def get_products_id(id: int):
+    try:
+        rows = query_get(
+            f"SELECT * FROM product WHERE PRODUCT_ID = {id} and DEL_FRAG = 'N' and RECORD_STATUS = 'A'")
+        return {"message": 200, "data": rows}
+    except Exception as err:
+        return {"message": err, "status": "somthing went wrong!!"}
 
-    sql_update_query = (
-        "UPDATE category SET del_frag = %s ,UPDATE_DATE = %s WHERE CATEGORY_ID = %s"
-    )
-    cursor.execute(sql_update_query, ("Y", update_time, id))
+    # product by category id
 
-    cnx.commit()
-    cursor.close()
-    cnx.close()
 
-    return {"id": id, "Status": "200"}
+@app.get('/get.product.category/{id}')
+def get_products_category_id(id: int):
+    try:
+        rows = query_get(
+            f"SELECT * FROM product WHERE CATEGORY_ID = {id} and DEL_FRAG = 'N' and RECORD_STATUS = 'A'")
+        return {"message": 200, "data": rows}
+    except Exception as err:
+        return {"message": err, "status": "somthing went wrong!!"}
+    # product by category and status 'ว่าง'
 
 
-# ----------------------------------------------------- END [PUTDEL] CATEGORY--------------------------------------
+@app.get('/get.product.category.status/{id}')
+def get_products_category_status_id(id: int):
+    try:
+        rows = query_get(
+            f"SELECT * FROM product WHERE CATEGORY_ID = {id} and STATUS_ID = 6 and DEL_FRAG = 'N' and RECORD_STATUS = 'A' and on_hold='N'")
 
+        return {"message": 200, "data": rows}
+    except Exception as err:
+        return {"message": err, "status": "somthing went wrong!!"}
 
-# ----------------------------------------------------- [DELETE] CATEGORY--------------------------------------
-@app.delete("/delete_category/{id}")
-def delete_category(id: int):
-    cnx = get_DB()
-    cursor = cnx.cursor()
+    # product by status id
 
-    query = "DELETE FROM category WHERE CATEGORY_ID = %s"
-    cursor.execute(query, (id,))
-    cnx.commit()
-    cursor.close()
-    cnx.close()
 
-    return {"status": 200, "description": "done", "id": id}
+@app.get('/get.product.status/{id}')
+def get_products_category_id(id: int):
+    try:
+        rows = query_get(
+            f"SELECT * FROM product WHERE STATUS_ID = {id} and DEL_FRAG = 'N' and RECORD_STATUS = 'A' and on_hold='N'")
 
+        return {"message": 200, "data": rows}
+    except Exception as err:
+        return {"message": err, "status": "somthing went wrong!!"}
+    # img
 
-# ----------------------------------------------------- END [DELETE] CATEGORY---------------------------------------
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-# -----------------------------------------------------[POST] STATUS---------------------------------------
-class add_status(BaseModel):
-    STATUS_NAME: str
-    STATUS_DESCRIPTION: str
-    RECORD_STATUS: str
-    DEL_FRAG: str
-    CREATE_DATE: datetime
-    UPDATE_DATE: datetime
 
+@app.get('/get.img/{id}')
+def get_img(id: int):
+    try:
+        rows = query_get(
+            f"SELECT * FROM img WHERE PRODUCT_ID = {id} and DEL_FRAG = 'N' and RECORD_STATUS = 'A' ")
+        return {"message": 200, "data": rows}
+    except Exception as err:
+        return {"message": err, "status": "something went wrong !!"}
 
-@app.post("/add_status")
-async def add_status(data: add_status):
-    data.RECORD_STATUS = "A"
-    data.DEL_FRAG = "N"
+    # student
 
-    CREATE_DATE = datetime.now()
-    UPDATE_DATE = datetime.now()
 
-    cnx = get_DB()
-    cursor = cnx.cursor()
-
-    query = "INSERT INTO status (STATUS_NAME ,STATUS_DESCRIPTION ,RECORD_STATUS,DEL_FRAG,CREATE_DATE ,UPDATE_DATE) VALUES ( %s ,%s,%s,%s,%s,%s)"
-    cursor.execute(
-        query,
-        (
-            data.STATUS_NAME,
-            data.STATUS_DESCRIPTION,
-            data.RECORD_STATUS,
-            data.DEL_FRAG,
-            CREATE_DATE,
-            UPDATE_DATE,
-        ),
-    )
-
-    cnx.commit()
-    test_id = cursor.lastrowid
-    cursor.close()
-    cnx.close()
-
-    return {"id": test_id, "status": 200}
-
-
-# -----------------------------------------------------END [POST] STATUS ---------------------------------------
-# -----------------------------------------------------[GET] STATUS---------------------------------------
-
-
-@app.get("/get_status")
-def get_test():
-    cnx = get_DB()
-    cursor = cnx.cursor()
-    query = "SELECT * FROM status WHERE del_frag = 'N' and RECORD_STATUS ='A'"
-    cursor.execute(query)
-
-    rows = cursor.fetchall()
-    cursor.close()
-    cnx.close()
-
-    lst = []
-
-    for row in rows:
-        lst.append(
-            {
-                "STATUS_ID": row[0],
-                "STATUS_NAME": row[1],
-                "STATUS_DESCRIPTION": row[2],
-                "RECORD_STATUS": row[3],
-                "CREATE_DATE": row[5],
-                "UPDATE_DATE": row[6],
-            }
-        )
-
-    return lst
-
-
-# ----------------------------------------------------- END [GET] STATUS---------------------------------------
-
-# -----------------------------------------------------  [PUTDEL] STATUS---------------------------------------
-
-
-@app.put("/put_del_status/{id}")
-async def put_del_status(id: int):
-    update_time = datetime.now()
-    cnx = get_DB()
-    cursor = cnx.cursor()
-
-    sql_update_query = (
-        "UPDATE status SET del_frag = %s , UPDATE_DATE = %s WHERE STATUS_ID = %s"
-    )
-    cursor.execute(sql_update_query, ("Y", update_time, id))
-
-    cnx.commit()
-    cursor.close()
-    cnx.close()
-
-    return {"id": id, "Status": "200"}
-
-
-# ----------------------------------------------------- END [PUTDEL] STATUS---------------------------------------
-
-
-# ----------------------------------------------------- [PUT_DATA] STATUS---------------------------------------
-class putCategory(BaseModel):
-    STATUS_NAME: str
-    STATUS_DESCRIPTION: str
-
-
-@app.put("/put_status/{id}")
-async def put_status(id: int, data: putCategory):
-    update_time = datetime.now()
-    cnx = get_DB()
-    cursor = cnx.cursor()
-
-    sql_update_query = "UPDATE status SET STATUS_NAME = %s ,STATUS_DESCRIPTION = %s,UPDATE_DATE = %s  WHERE STATUS_ID = %s"
-    cursor.execute(
-        sql_update_query, (data.STATUS_NAME, data.STATUS_DESCRIPTION, update_time, id)
-    )
-
-    cnx.commit()
-    cursor.close()
-    cnx.close()
-
-    return {"id": id, "Status": "200"}
-
-
-# ----------------------------------------------------- END [PUT_DATA] STATUS---------------------------------------
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-# -----------------------------------------------------[GET] PRODUCT ---------------------------------------
-
-
-@app.get("/get_product")
-def get_test():
-    cnx = get_DB()
-    cursor = cnx.cursor()
-    # query = "SELECT * FROM product WHERE del_frag = 'N'"
-    query = "SELECT * FROM product WHERE del_frag = 'N' and RECORD_STATUS = 'A'; "
-    cursor.execute(query)
-
-    rows = cursor.fetchall()
-    cursor.close()
-    cnx.close()
-
-    lst = []
-
-    for row in rows:
-        lst.append(
-            {
-                "P_ID": row[0],
-                "P_NAME": row[1],
-                "P_DESCRIPTION": row[2],
-                "P_DOP": row[3],
-                "P_PRICE": row[4],
-                "P_SERIALNUMBER": row[5],
-                "P_EQUIPMENTNUMBER": row[6],
-                "P_BAND": row[7],
-                "CATEGORY_ID": row[8],
-                "STATUS_ID": row[9],
-                "STUDENT_ID": row[10],
-                "RECORD_STATUS": row[11],
-                "DEL_FRAG": row[12],
-                "CREATE_DATE": row[13],
-                "UPDATE_DATE": row[14],
-            }
-        )
-
-    return lst
-
-
-# ----------------------------------------------------- END [GET] PRODUCT---------------------------------------
-
-# -----------------------------------------------------[GET] PRODUCT BY CATEGORY ID---------------------------------------
-
-
-@app.get("/get_product/status")
-def get_test():
-    cnx = get_DB()
-    cursor = cnx.cursor()
-    query = "SELECT * FROM product WHERE del_frag = 'N' and STATUS_ID = 6 and RECORD_STATUS = 'A';  "  # หา product ที่่ว่าง
-    cursor.execute(query)
-
-    rows = cursor.fetchall()
-    cursor.close()
-    cnx.close()
-
-    lst = []
-
-    for row in rows:
-        lst.append(
-            {
-                "P_ID": row[0],
-                "P_NAME": row[1],
-                "P_DESCRIPTION": row[2],
-                "P_DOP": row[3],
-                "P_PRICE": row[4],
-                "P_SERIALNUMBER": row[5],
-                "P_EQUIPMENTNUMBER": row[6],
-                "P_BAND": row[7],
-                "CATEGORY_ID": row[8],
-                "STATUS_ID": row[9],
-                "STUDENT_ID": row[10],
-                "RECORD_STATUS": row[11],
-                "DEL_FRAG": row[12],
-                "CREATE_DATE": row[13],
-                "UPDATE_DATE": row[14],
-            }
-        )
-
-    return lst
-
-
-@app.get("/get_product/status/{id}")
-def get_pd_7(id:int):
-    cnx = get_DB()
-    cursor = cnx.cursor()
-    query = "SELECT * FROM product WHERE del_frag = 'N' and STATUS_ID = %s and RECORD_STATUS = 'A';  "  # หา product ที่่ว่าง
-    cursor.execute(query,(id,))
-
-    rows = cursor.fetchall()
-    cursor.close()
-    cnx.close()
-
-    lst = []
-
-    for row in rows:
-        lst.append(
-            {
-                "P_ID": row[0],
-                "P_NAME": row[1],
-                "P_DESCRIPTION": row[2],
-                "P_DOP": row[3],
-                "P_PRICE": row[4],
-                "P_SERIALNUMBER": row[5],
-                "P_EQUIPMENTNUMBER": row[6],
-                "P_BAND": row[7],
-                "CATEGORY_ID": row[8],
-                "STATUS_ID": row[9],
-                "STUDENT_ID": row[10],
-                "RECORD_STATUS": row[11],
-                "DEL_FRAG": row[12],
-                "CREATE_DATE": row[13],
-                "UPDATE_DATE": row[14],
-            }
-        )
-
-    return lst
-
-
-# ----------------------------------------------------- END [GET] PRODUCT BY CATEGORY ID---------------------------------------
-
-
-# hit add BTN
-class param(BaseModel):
-    text: str
-
-
-@app.put("/put_waitProduct/{id}")
-async def put_status(id: int, param: param):
-
-    wait = param.text
-
-    cnx = get_DB()
-    cursor = cnx.cursor()
-
-    sql_update_query = """UPDATE product SET 
-                        RECORD_STATUS = %s 
-                        WHERE P_ID = %s
-                        """
-    cursor.execute(
-        sql_update_query,
-        (
-            wait,
-            id,
-        ),
-    )
-
-    cnx.commit()
-    cursor.close()
-    cnx.close()
-
-    return {"id": id, "Status": "200"}
-
-
-# hit delete on add  BTN
-
-# @app.put("/put_readyProduct/{id}")
-# async def put_status(id: int):
-
-#     wait = 'A'
-
-#     cnx = get_DB()
-#     cursor = cnx.cursor()
-
-#     sql_update_query = '''UPDATE product SET
-#                         RECORD_STATUS = %s
-#                         WHERE P_ID = %s
-#                         '''
-#     cursor.execute(sql_update_query, (wait ,id,))
-
-#     cnx.commit()
-#     cursor.close()
-#     cnx.close()
-
-#     return {"id" : id , "Status" : '200'}
-
-
-# -----------------------------------------------------[GET] PRODUCT BY P_ID ---------------------------------------
-
-
-@app.get("/get_product/{id}")
-def get_test(id: int):
-    cnx = get_DB()
-    cursor = cnx.cursor()
-    query = "SELECT * FROM product WHERE P_ID = %s and RECORD_STATUS = 'A' and DEL_FRAG = 'N'"
-    cursor.execute(query, (id,))
-
-    rows = cursor.fetchall()
-    cursor.close()
-    cnx.close()
-
-    lst = {}
-
-    for row in rows:
-        lst = {
-                "P_ID": row[0],
-                "P_NAME": row[1],
-                "P_DESCRIPTION": row[2],
-                "P_DOP": row[3],
-                "P_PRICE": row[4],
-                "P_SERIALNUMBER": row[5],
-                "P_EQUIPMENTNUMBER": row[6],
-                "P_BAND": row[7],
-                "CATEGORY_ID": row[8],
-                "STATUS_ID": row[9],
-                "STUDENT_ID": row[10],
-                "RECORD_STATUS": row[11],
-                "DEL_FRAG": row[12],
-                "CREATE_DATE": row[13],
-                "UPDATE_DATE": row[14],
-            }
-            
-    
-
-    return lst
-
-
-# -----------------------------------------------------END[GET] PRODUCT BY ID ---------------------------------------
-
-
-# -----------------------------------------------------[POST] PRODUCT ---------------------------------------
-class add_product(BaseModel):
-
-    P_NAME: str
-    CATEGORY_ID: int
-    STATUS_ID: int
-    P_PRICE: int
-    P_DOP: str
-    P_BAND: str
-    P_SERIALNUMBER: str
-    P_EQUIPMENTNUMBER: str
-    P_DESCRIPTION: str
-    STUDENT_ID: int
-    RECORD_STATUS: str
-    DEL_FRAG: str
-    CREATE_DATE: datetime
-    UPDATE_DATE: datetime
-    IMG:str
-
-
-@app.post("/add_product")
-async def add_product(data: add_product):
-    
-    dop = data.P_DOP
-    
-    def convertTime(date:String):
-        utc_time = parser.isoparse(date)
-
-        # ตั้งค่า timezone เป็น UTC
-        utc_time = utc_time.replace(tzinfo=pytz.UTC)
-
-        # แปลงเป็น timezone ที่ต้องการ (เช่น เวลาประเทศไทย)
-        local_time = utc_time.astimezone(pytz.timezone("Asia/Bangkok"))
-        
-        return local_time
-        
-    res_dop = convertTime(dop)
-    
-    def add_products():
-        data.RECORD_STATUS = "A"
-        data.DEL_FRAG = "N"
-        CREATE_DATE = datetime.now()
-        UPDATE_DATE = datetime.now()
-
-        cnx = get_DB()
-        cursor = cnx.cursor()
-
-        query = "INSERT INTO product (P_NAME ,CATEGORY_ID,STATUS_ID,P_PRICE,P_DOP,P_BAND,P_SERIALNUMBER,P_EQUIPMENTNUMBER,P_DESCRIPTION,STUDENT_ID,RECORD_STATUS,DEL_FRAG,CREATE_DATE ,UPDATE_DATE) VALUES ( %s ,%s,%s,%s,%s,%s,%s ,%s,%s,%s,%s,%s,%s,%s)"
-        cursor.execute(
-            query,
-            (
-                data.P_NAME,
-                data.CATEGORY_ID,
-                data.STATUS_ID,
-                data.P_PRICE,
-                res_dop,
-                data.P_BAND,
-                data.P_SERIALNUMBER,
-                data.P_EQUIPMENTNUMBER,
-                data.P_DESCRIPTION,
-                data.STUDENT_ID,
-                data.RECORD_STATUS,
-                data.DEL_FRAG,
-                CREATE_DATE,
-                UPDATE_DATE,
-            ),
-        )
-
-        cnx.commit()
-        res_id = cursor.lastrowid
-        cursor.close()
-        cnx.close()
-        
-        return res_id
-    
-
-    def add_img(name:str ,id:int):
-    
-        cnx = get_DB()
-        cursor = cnx.cursor()
-
-        query = "INSERT INTO img (IMG_NAME,P_ID) VALUES ( %s,%s)"
-        cursor.execute(query,(name,id),)
-
-        cnx.commit()
-        test_id = cursor.lastrowid
-        cursor.close()
-        cnx.close()
-
-        return {"id": test_id, "status": 200}
-        
-    
-    res_id = add_products();    
-    add_img(data.IMG , res_id)
-    
-    
-
-    return {"id": res_id,"msg":'Success', "status": 200}
-
-
-# ----------------------------------------------------- END [POST] PRODUCT ---------------------------------------
-
-
-# ----------------------------------------------------- [PUT_DATA] PRODUCT---------------------------------------
-class putProduct(BaseModel):
-    P_NAME: str
-    P_DESCRIPTION: str
-    P_DOP: str
-    P_PRICE: int
-    P_SERIALNUMBER: str
-    P_EQUIPMENTNUMBER: str
-    P_BAND: str
-    CATEGORY_ID: int
-    STATUS_ID: int
-    UPDATE_DATE: datetime
-
-
-@app.put("/put_product/{id}")
-async def put_status(id: int, data: putProduct):
-    # def convertTime(date:String):
-    #     utc_time = parser.isoparse(date)
-
-    #     # ตั้งค่า timezone เป็น UTC
-    #     utc_time = utc_time.replace(tzinfo=pytz.UTC)
-
-    #     # แปลงเป็น timezone ที่ต้องการ (เช่น เวลาประเทศไทย)
-    #     local_time = utc_time.astimezone(pytz.timezone("Asia/Bangkok"))
-        
-    #     return local_time
-    
-    
-
-    update_time = datetime.now()
-    cnx = get_DB()
-    cursor = cnx.cursor()
-    
-    # res_dop = convertTime(data.P_DOP)
-    
-    
-
-    sql_update_query = """
-    UPDATE product SET 
-    P_NAME = %s ,P_DESCRIPTION = %s ,P_DOP = %s,
-    P_PRICE =%s ,P_SERIALNUMBER = %s, P_EQUIPMENTNUMBER = %s,P_BAND = %s,
-    CATEGORY_ID =%s ,STATUS_ID = %s,
-    UPDATE_DATE = %s
-    WHERE P_ID = %s
-    """
-    cursor.execute(
-        sql_update_query,
-        (
-            data.P_NAME,
-            data.P_DESCRIPTION,
-            data.P_DOP,
-            data.P_PRICE,
-            data.P_SERIALNUMBER,
-            data.P_EQUIPMENTNUMBER,
-            data.P_BAND,
-            data.CATEGORY_ID,
-            data.STATUS_ID,
-            update_time,
-            id
-        ),
-    )
-
-    cnx.commit()
-    cursor.close()
-    cnx.close()
-
-    return {"id": id, "Status": "200"}
-
-
-# ----------------------------------------------------- END [PUT_DATA] PRODUCT---------------------------------------
-
-# -----------------------------------------------------  [PUTDEL] PRODUCT---------------------------------------
-
-
-@app.put("/put_del_product/{id}")
-async def put_del_product(id: int):
-    update_time = datetime.now()
-    cnx = get_DB()
-    cursor = cnx.cursor()
-
-    sql_update_query = (
-        "UPDATE product SET del_frag = %s , UPDATE_DATE = %s WHERE P_ID = %s"
-    )
-    cursor.execute(sql_update_query, ("Y", update_time, id))
-
-    cnx.commit()
-    cursor.close()
-    cnx.close()
-
-    return {"id": id, "Status": "200"}
-
-
-# ----------------------------------------------------- END [PUTDEL] PRODUCT---------------------------------------
-
-# -----------------------------------------------------[GET] STUDENT ---------------------------------------
-
-
-@app.get("/get_student")
+@app.get('/get.student')
 def get_student():
-    cnx = get_DB()
-    cursor = cnx.cursor()
-    query = "SELECT * FROM student WHERE del_frag = 'N' and RECORD_STATUS = 'A'"
-    cursor.execute(query)
+    try:
+        res = query_get(
+            "SELECT * FROM student WHERE DEL_FRAG = 'N' and RECORD_STATUS = 'A'")
+        return {"message": 200, "data": res}
+    except Exception as err:
+        return {"message": err, "status": "something went wrong !!"}
 
-    rows = cursor.fetchall()
-    cursor.close()
-    cnx.close()
-
-    lst = []
-
-    for row in rows:
-        lst.append(
-            {
-                "STUDENT_ID": row[0],
-                "STUDENT_NAME": row[1],
-                "STUDENT_CODE": row[2],
-                "STUDENT_YEAR": row[3],
-                "STUDENT_FACULTY": row[4],
-                "STUDENT_MAJOR": row[5],
-                "RECORD_STATUS": row[6],
-                "DEL_FRAG": row[7],
-                "CREATE_DATE": row[8],
-                "UPDATE_DATE": row[9],
-            }
-        )
-
-    return lst
+    # student by code
 
 
-# -----------------------------------------------------END [GET] STUDENT ---------------------------------------
-
-# -----------------------------------------------------[GET] BY CODE STUDENT ---------------------------------------
-
-
-@app.get("/get_student/{code}")
+@app.get('/get.student/{code}')
 def get_student(code: str):
-    cnx = get_DB()
-    cursor = cnx.cursor()
-    query = "SELECT * FROM student WHERE STUDENT_CODE = %s and RECORD_STATUS = 'A' and DEL_FRAG ='N'"
-    cursor.execute(query, (code,))
+    try:
+        res = query_get(
+            f"SELECT * FROM student WHERE STUDENT_CODE = '{code}' and DEL_FRAG = 'N' and RECORD_STATUS = 'A'")
 
-    rows = cursor.fetchall()
-    cursor.close()
-    cnx.close()
+        if not res:
+            return err
+        return {"message": 200, "data": res}
+    except Exception as err:
+        return {"message": err, "status": "something went wrong !!"}
 
-    lst = []
-
-    if not rows:  # ถ้าไม่มีข้อมูล
-        return {"status": 404, "error": "Student not found."}
-
-    for row in rows:
-        lst.append(
-            {
-                "STUDENT_ID": row[0],
-                "STUDENT_NAME": row[1],
-                "STUDENT_CODE": row[2],
-                "STUDENT_YEAR": row[3],
-                "STUDENT_FACULTY": row[4],
-                "STUDENT_MAJOR": row[5],
-                "RECORD_STATUS": row[6],
-                "DEL_FRAG": row[7],
-                "CREATE_DATE": row[8],
-                "UPDATE_DATE": row[9],
-            }
-        )
-
-    return {"status": 200, "data": lst}
+    # borrow
 
 
-# -----------------------------------------------------END [GET] BY CODE STUDENT ---------------------------------------
+@app.get('/get.borrow/{status}')
+def get_borrow(status: str):
+    try:
+        res = query_get(
+            f"SELECT * FROM borrow WHERE DEL_FRAG = '{status}' and RECORD_STATUS = 'A'")
+
+        return {"message": 200, "data": res}
+    except Exception as err:
+        return {"message": err, "status": "something went wrong !!"}
 
 
-# -----------------------------------------------------[POST] borrow ---------------------------------------
-class StudentInfo(BaseModel):
-    STUDENT_ID: int
-    STUDENT_NAME: str
-    STUDENT_CODE: str
-    STUDENT_YEAR: str
-    STUDENT_FACULTY: str
-    STUDENT_MAJOR: str
-    RECORD_STATUS: str
-    DEL_FRAG: str
-    CREATE_DATE: datetime
-    UPDATE_DATE: datetime
+# post
+    # account
 
 
-# Class สำหรับข้อมูลผลิตภัณฑ์
-class ProductInfo(BaseModel):
-    P_ID: int
-    P_NAME: str
-    P_DESCRIPTION: str
-    P_DOP: str
-    P_PRICE: int
-    P_SERIALNUMBER: str
-    P_EQUIPMENTNUMBER: str
-    P_BAND: str
+class usernames(BaseModel):
+    username: str
+    password: str
+
+
+def custom_hash(data: str) -> str:
+    hashed = hashlib.sha256(data.encode()).hexdigest()
+    truncated_hash = hashed[:16]
+    formatted_hash = f"0x{truncated_hash.upper()}"
+    return formatted_hash
+
+
+@app.post("/post.account")
+async def get_account(data: usernames):
+
+    hash_pw = custom_hash(data.password)
+
+    rows = query_post(
+        "SELECT * FROM account WHERE USERNAME = %s and PASSWORD = %s", (data.username, hash_pw), 'login')
+
+    if not rows["data"]:
+        # raise HTTPException(status_code=204, status = "Incorrect username or password")
+        return {"message": 204, "status": "Incorrect username or password"}
+    else:
+
+        return {"message": 200, "status": "Success", "data": rows["data"]}
+
+    # category
+
+
+class category(BaseModel):
+    CATEGORY_NAME: str
+    CATEGORY_DESCRIPTION: str
+
+
+@app.post('/post.category')
+def post_category(data: category):
+    try:
+        res = query_post("INSERT INTO category (CATEGORY_NAME ,CATEGORY_DESCRIPTION) VALUES (%s,%s)",
+                         (data.CATEGORY_NAME, data.CATEGORY_DESCRIPTION), 'update')
+        return res
+    except Exception as err:
+        return {"message": err, "status": "somthing went wrong!!"}
+
+    # status
+
+
+class status(BaseModel):
+    STATUS_NAME: str
+    STATUS_DESCRIPTION: str
+
+
+@app.post('/post.status')
+def post_category(data: status):
+    try:
+        res = query_post("INSERT INTO status (STATUS_NAME ,STATUS_DESCRIPTION) VALUES (%s,%s)",
+                         (data.STATUS_NAME, data.STATUS_DESCRIPTION), 'update')
+        return res
+    except Exception as err:
+        return {"message": err, "status": "somthing went wrong!!"}
+
+    # product
+
+
+class addProduct(BaseModel):
+    PRODUCT_NAME: str
     CATEGORY_ID: int
     STATUS_ID: int
+    PRODUCT_PRICE: int
+    PRODUCT_DOP: str
+    PRODUCT_BAND: str
+    PRODUCT_SERIALNUMBER: str
+    PRODUCT_EQUIPMENTNUMBER: str
+    PRODUCT_DESCRIPTION: str
+    IMG: str
+
+
+@app.post('/post.product')
+def add_product(data: addProduct):
+    cratedate = datetime.now()
+    try:
+        res = query_post("""INSERT INTO product (PRODUCT_NAME  ,CATEGORY_ID ,STATUS_ID ,PRODUCT_PRICE ,PRODUCT_DOP ,PRODUCT_BAND ,PRODUCT_SERIALNUMBER ,PRODUCT_EQUIPMENTNUMBER ,PRODUCT_DESCRIPTION ,CREATE_DATE ) VALUES ( %s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                         (data.PRODUCT_NAME, data.CATEGORY_ID, data.STATUS_ID, data.PRODUCT_PRICE, data.PRODUCT_DOP, data.PRODUCT_BAND, data.PRODUCT_SERIALNUMBER, data.PRODUCT_EQUIPMENTNUMBER, data.PRODUCT_DESCRIPTION, cratedate), 'id')
+
+        res_img = query_post(
+            "INSERT INTO img (PRODUCT_ID ,IMG_NAME) VALUES (%s,%s)", (res["ID"], data.IMG,), 'update')
+
+        return {"message": 200, "product_status": res, "image_status": res_img}
+    except Exception as err:
+        return {"message": err, "status": "somthing went wrong"}
+
+    # borrow
+
+
+class ProductInfo(BaseModel):
+    PRODUCT_ID: int
+
+
+class addborrow(BaseModel):
     STUDENT_ID: int
-    RECORD_STATUS: str
-    DEL_FRAG: str
-    CREATE_DATE: datetime
-    UPDATE_DATE: datetime
-
-
-class StudentWithProducts(BaseModel):
-    STUDENT_INFO: StudentInfo
     PRODUCT_INFO: List[ProductInfo]
 
 
-# 7
-
-
-
-@app.post("/borrow")
-def add_product(data: StudentWithProducts):
-    s_id = data.STUDENT_INFO.STUDENT_ID
-
-    # @app.put("")
-    def changeStatus(s_id: int):
-        for i in range(len(data.PRODUCT_INFO)):
-            p_id = data.PRODUCT_INFO[i].P_ID
-            status_id = 7
-            record_id = "A"
-
-            cnx = get_DB()
-            cursor = cnx.cursor()
-
-            sql_update_query = "UPDATE product SET STUDENT_ID = %s , STATUS_ID = %s ,RECORD_STATUS = %s WHERE P_ID = %s"
-            cursor.execute(sql_update_query, (s_id, status_id, record_id, p_id))
-
-            cnx.commit()
-            cursor.close()
-            cnx.close()
-
-        for j in range(len(data.PRODUCT_INFO)):
-
-            p_id = data.PRODUCT_INFO[j].P_ID
-
-            record_status = "A"
-            del_frag = "N"
-            create_date = datetime.now()
-
-            cnx = get_DB()
-            cursor = cnx.cursor()
-
-            query = "INSERT INTO borrow (P_ID,STUDENT_ID,RECORD_STATUS,DEL_FRAG,CREATE_DATE) VALUES (%s,%s,%s,%s,%s)"
-            cursor.execute(query, (p_id, s_id, record_status, del_frag, create_date))
-
-            cnx.commit()
-            test_id = cursor.lastrowid
-            cursor.close()
-            cnx.close()
-
-    changeStatus(s_id)
-
-    return {"status": 200}
-
-
-# ----------------------------------------------------- END [POST] borrow ---------------------------------------
-
-# -----------------------------------------------------[GET] BORROW ---------------------------------------
-
-
-@app.get("/get_borrow")
-def get_borrow():
-    cnx = get_DB()
-    cursor = cnx.cursor()
-    query = "SELECT * FROM borrow WHERE del_frag = 'N' and RECORD_STATUS = 'A'"
-    cursor.execute(query)
-
-    rows = cursor.fetchall()
-    cursor.close()
-    cnx.close()
-
-    lst = []
-
-    for row in rows:
-        lst.append(
-            {
-                "LIST_ID": row[0],
-                "P_ID": row[1],
-                "STUDENT_ID": row[2],
-                "RECORD_STATUS": row[3],
-                "DEL_FRAG": row[4],
-                "CREATE_DATE": row[5],
-                "UPDATE_DATE": row[6],
-            }
-        )
-
-    return lst
-
-
-# -----------------------------------------------------END [GET] BORROW ---------------------------------------
-
-
-
-# -----------------------------------------------------[PUT] BORROW back---------------------------------------
-
-class studentBorrowBack(BaseModel):
-    P_ID :int
-    LIST_ID : int
-    STUDENT_ID : int
-
-
-@app.put("/put_borrow_back")
-async def put_del_borrow(data: studentBorrowBack):
-    p_id = data.P_ID
-    l_id = data.LIST_ID
+@app.post('/post.borrow')
+def add_borrow(data: addborrow):
+    create_form = datetime.now()
+    res_arr = []
     s_id = data.STUDENT_ID
-    update_time = datetime.now()
 
-    cnx = get_DB()
-    cursor = cnx.cursor()
+    for product in data.PRODUCT_INFO:
+        p_id = product.PRODUCT_ID
 
-    # Update borrow table
-    sql_update_query_borrow = (
-        "UPDATE borrow SET del_frag = %s, UPDATE_DATE = %s WHERE LIST_ID = %s"
-    )
-    cursor.execute(sql_update_query_borrow, ("Y", update_time, l_id))
-    cnx.commit()
+        try:
+            # res = query_post("INSERT INTO borrow (STUDENT_ID ,PRODUCT_ID) VALUES (%s,%s)",(s_id,p_id,),'update')
+            res = query_post(
+                "INSERT INTO borrow (PRODUCT_ID,STUDENT_ID,CREATE_DATE) VALUES (%s,%s,%s)", (p_id, s_id, create_form,), 'id')
+            res_2 = query_put(
+                "UPDATE product SET STATUS_ID = 7 , on_hold = 'N' WHERE PRODUCT_ID = %s", (p_id,))
+            res_arr.append(res["ID"])
 
-    # Update product table
-    sql_update_query_product = (
-        "UPDATE product SET STATUS_ID = %s, STUDENT_ID = %s WHERE P_ID = %s"
-    )
-    cursor.execute(sql_update_query_product, (6, 0, p_id))
-    cnx.commit()
+            # return {"message": 200, "status": res_arr}
 
-    cursor.close()
-    cnx.close()
+        except Exception as err:
+            return {"message": err, "status": "somthing went wrong"}
 
-    return {"status": "success", "updated_list_id": l_id, "updated_product_id": p_id}
+    return {"message": 200, "status": res_arr}
 
 
-# -----------------------------------------------------END [PUT] BORROW back---------------------------------------
+# Put
+    # category
 
 
-# -----------------------------------------------------[GET] BORROW  by '' ---------------------------------------
+class editCategory(BaseModel):
+    CATEGORY_ID: int
+    CATEGORY_NAME: str
+    CATEGORY_DESCRIPTION: str
 
 
-@app.get("/get_borrow_y")
-def get_borrow():
-    cnx = get_DB()
-    cursor = cnx.cursor()
-    query = "SELECT * FROM borrow WHERE del_frag = 'y' and RECORD_STATUS = 'A'"
-    cursor.execute(query)
+@app.put('/put.category')
+async def put_category(data: editCategory):
+    try:
+        res = await query_put("UPDATE category SET  CATEGORY_NAME = %s , CATEGORY_DESCRIPTION = %s WHERE CATEGORY_ID = %s", (data.CATEGORY_NAME, data.CATEGORY_DESCRIPTION, data.CATEGORY_ID,))
+        return res
+    except Exception as err:
+        return {"message": err, "status": "somthing went wrong!!"}
+    # stats
 
-    rows = cursor.fetchall()
-    cursor.close()
-    cnx.close()
-
-    lst = []
-
-    for row in rows:
-        lst.append(
-            {
-                "LIST_ID": row[0],
-                "P_ID": row[1],
-                "STUDENT_ID": row[2],
-                "RECORD_STATUS": row[3],
-                "DEL_FRAG": row[4],
-                "CREATE_DATE": row[5],
-                "UPDATE_DATE": row[6],
-            }
-        )
 
-    return lst
+class editStatus(BaseModel):
+    STATUS_ID: int
+    STATUS_NAME: str
+    STATUS_DESCRIPTION: str
 
 
-# -----------------------------------------------------END [GET] BORROW ---------------------------------------
+@app.put('/put.status')
+async def put_status(data: editStatus):
+    try:
+        res = await query_put("UPDATE status SET  STATUS_NAME = %s , STATUS_DESCRIPTION = %s WHERE STATUS_ID = %s", (data.STATUS_NAME, data.STATUS_DESCRIPTION, data.STATUS_ID,))
+        return res
+    except Exception as err:
+        return {"message": err, "status": "somthing went wrong!!"}
 
+    # product
 
 
+class editProduct(BaseModel):
+    PRODUCT_ID: int
+    PRODUCT_NAME: str
+    PRODUCT_DESCRIPTION: str
+    PRODUCT_DOP: str
+    PRODUCT_PRICE: int
+    PRODUCT_SERIALNUMBER: str
+    PRODUCT_EQUIPMENTNUMBER: str
+    PRODUCT_BAND: str
+    CATEGORY_ID: int
+    STATUS_ID: int
 
+    # product  by id
 
-# ----------------------------------------------------[get product by category id]------------------
 
-@app.get("/get_product_by_Category/{id}")
-def get_test(id: int):
-    cnx = get_DB()
-    cursor = cnx.cursor()
-    query = "SELECT * FROM product WHERE CATEGORY_ID = %s and RECORD_STATUS = 'A'  and DEL_FRAG ='N'"
-    cursor.execute(query, (id,))
+@app.put('/put.product/{id}')
+async def put_product_id(data: editProduct):
+    try:
+        res = await query_put("""UPDATE product SET
+        PRODUCT_NAME = %s ,PRODUCT_DESCRIPTION = %s ,PRODUCT_DOP = %s,
+        PRODUCT_PRICE =%s ,PRODUCT_SERIALNUMBER = %s, PRODUCT_EQUIPMENTNUMBER = %s,PRODUCT_BAND = %s,
+        CATEGORY_ID =%s ,STATUS_ID = %s
+        WHERE PRODUCT_ID = %s""", (data.PRODUCT_NAME, data.PRODUCT_DESCRIPTION, data.PRODUCT_DOP, data.PRODUCT_PRICE, data.PRODUCT_SERIALNUMBER, data.PRODUCT_EQUIPMENTNUMBER, data.PRODUCT_BAND, data.CATEGORY_ID, data.STATUS_ID, data.PRODUCT_ID))
+        return res
+    except Exception as err:
+        return {"message": err, "status": "somthing went wrong!!"}
 
-    rows = cursor.fetchall()
-    cursor.close()
-    cnx.close()
+    # borrow back
 
-    lst = []
 
-    for row in rows:
-        lst.append(
-            {
-                "P_ID": row[0],
-                "P_NAME": row[1],
-                "P_DESCRIPTION": row[2],
-                "P_DOP": row[3],
-                "P_PRICE": row[4],
-                "P_SERIALNUMBER": row[5],
-                "P_EQUIPMENTNUMBER": row[6],
-                "P_BAND": row[7],
-                "CATEGORY_ID": row[8],
-                "STATUS_ID": row[9],
-                "STUDENT_ID": row[10],
-                "RECORD_STATUS": row[11],
-                "DEL_FRAG": row[12],
-                "CREATE_DATE": row[13],
-                "UPDATE_DATE": row[14],
-            }
-        )
-
-    return lst
-
-
-# ----------------------------------------------------END   [get product by category id]------------------
-
-
-# ----------------------------------------------------[get product by category id and status is 'ว่าง']------------------
-
-@app.get("/get_product_by_Category_Status/{id}")
-def get_test(id: int):
-    cnx = get_DB()
-    cursor = cnx.cursor()
-    # query = "SELECT * FROM product WHERE CATEGORY_ID = %s and STATUS_ID = 6"
-    query = "SELECT * FROM product WHERE del_frag = 'N' and STATUS_ID = 6 and RECORD_STATUS = 'A' and CATEGORY_ID = %s "
-    
-    cursor.execute(query, (id,))
-
-    rows = cursor.fetchall()
-    cursor.close()
-    cnx.close()
-
-    lst = []
-
-    for row in rows:
-        lst.append(
-            {
-                "P_ID": row[0],
-                "P_NAME": row[1],
-                "P_DESCRIPTION": row[2],
-                "P_DOP": row[3],
-                "P_PRICE": row[4],
-                "P_SERIALNUMBER": row[5],
-                "P_EQUIPMENTNUMBER": row[6],
-                "P_BAND": row[7],
-                "CATEGORY_ID": row[8],
-                "STATUS_ID": row[9],
-                "STUDENT_ID": row[10],
-                "RECORD_STATUS": row[11],
-                "DEL_FRAG": row[12],
-                "CREATE_DATE": row[13],
-                "UPDATE_DATE": row[14],
-            }
-        )
-
-    return lst
-
-
-# ----------------------------------------------------END   [get product by category id]------------------
-
-
-
-
-
-# ----------------------------------------------------[get product by category id and status is 'ว่าง' and N]------------------
-
-# @app.get("/get_product_by_Category_Status_n/{id}")
-# def get_test(id: int):
-#     cnx = get_DB()
-#     cursor = cnx.cursor()
-#     # query = "SELECT * FROM product WHERE CATEGORY_ID = %s and STATUS_ID = 6"
-#     query = "SELECT * FROM product WHERE del_frag = 'N' and STATUS_ID = 6 and RECORD_STATUS = 'N' and CATEGORY_ID = %s "
-    
-#     cursor.execute(query, (id,))
-
-#     rows = cursor.fetchall()
-#     cursor.close()
-#     cnx.close()
-
-#     lst = []
-
-#     for row in rows:
-#         lst.append(
-#             {
-#                 "P_ID": row[0],
-#                 "P_NAME": row[1],
-#                 "P_DESCRIPTION": row[2],
-#                 "P_DOP": row[3],
-#                 "P_PRICE": row[4],
-#                 "P_SERIALNUMBER": row[5],
-#                 "P_EQUIPMENTNUMBER": row[6],
-#                 "P_BAND": row[7],
-#                 "CATEGORY_ID": row[8],
-#                 "STATUS_ID": row[9],
-#                 "STUDENT_ID": row[10],
-#                 "RECORD_STATUS": row[11],
-#                 "DEL_FRAG": row[12],
-#                 "CREATE_DATE": row[13],
-#                 "UPDATE_DATE": row[14],
-#             }
-#         )
-
-#     return lst
-
-
-# ----------------------------------------------------END   [get product by category id]------------------
-
-@app.get("/get_account")
-def get_borrow():
-    cnx = get_DB()
-    cursor = cnx.cursor()
-    query = "SELECT * FROM account WHERE del_frag = 'N' and RECORD_STATUS = 'A'"
-    cursor.execute(query)
-
-    rows = cursor.fetchall()
-    cursor.close()
-    cnx.close()
-
-    lst = []
-
-    for row in rows:
-        lst.append(
-            {
-                "USER_ID": row[0],
-                "USER_USER": row[1],
-                "USER_PW": row[2],
-                "USER_NAME": row[3],
-                "RECORD_STATUS": row[4],
-                "DEL_FRAG": row[5],
-                "CREATE_DATE": row[6],
-                "UPDATE_DATE": row[7],
-            }
-        )
-
-    return lst
-
-class usernames(BaseModel):
-    username : str
-    password : str
-    
-    
-# @app.put("/account")
-# def check_account(data: usernames):
-#     user = data.username
-#     pw = data.password
-    
-    
-#     cnx = get_DB()
-#     cursor = cnx.cursor()
-    
-#     sql_update_query = "UPDATE account SET USER_USER = %s , USER_PW = %s WHERE USER_USER = %s and USER_PW = %s"
-#     cursor.execute(sql_update_query, (user,pw,user,pw))
-
-#     cnx.commit()
-#     # cursor.close()
-#     # cnx.close()
-    
-#     cursor.close()
-#     cnx.close()
-
-
-#     return HTTPException
-
-# @app.post("/login")
-# async def login(data:usernames):
-#     # Check if the username exists
-    
-#     if data.username not in users_db:
-#         raise HTTPException(status_code=400, detail="Invalid username or password")
-    
-#     # Check if the password matches
-#     if users_db[username] != password:
-#         raise HTTPException(status_code=400, detail="Invalid username or password")
-    
-#     return {"message": "Login successful!"}
-
-# if __name__ == "__main__":
-#     import uvicorn
-#     uvicorn.run(app, host="127.0.0.1", port=8000)
-
-
-@app.post("/account")
-
-async def get_account(data:usernames):
-    cnx = get_DB()
-    cursor = cnx.cursor()
-    
-    sql_update_query = "SELECT * FROM account WHERE USERNAME = %s and PASSWORD = %s"
-    cursor.execute(sql_update_query, (data.username ,data.password))
-
-
-    rows = cursor.fetchall()
-    cursor.close()
-    cnx.close()
-
-    lst = []
+class borrowBack(BaseModel):
+    LIST_ID: int
+    PRODUCT_ID: int
+
+
+@app.put('/put.borrow.back')
+def put_borrow_back(data: borrowBack):
+    try:
+        res_borrow = query_put(
+            "UPDATE borrow SET DEL_FRAG = %s WHERE LIST_ID = %s", ('Y', data.LIST_ID,))
+        res_product = query_put(
+            "UPDATE product SET STATUS_ID = 6 WHERE PRODUCT_ID = %s", (data.PRODUCT_ID,))
+        return {"message": 200, "borrow_status": res_borrow, "product_status": res_product}
+    except Exception as err:
+        return {"message": err, "status": "somthing went wrong!!"}
+
+    # on hold
+
+
+@app.put('/put.onHold.Product.{onHold}/{id}')
+def on_hold(id: int, onHold: str):
+    try:
+        res = query_put(f"UPDATE product SET on_hold = '{onHold}' WHERE PRODUCT_ID = %s", (id,))
+        return {"message": 200, "status": res}
+    except Exception as err:
+        return {"message": err, "status": "somthing went wrong!!"}
+
+
+# Delete
+    # hybrids Function
+@app.put("/delete.{table}/{id}")
+async def put_category_delfrag(id: int, table: str):
+    try:
+        res = await query_put(f"UPDATE {table} SET DEL_FRAG = 'Y' WHERE {table.upper()}_ID = %s", (id,))
+        return res
+    except Exception as err:
+        return {"message": err, "Status": "something went wrong!!"}
+
+    # on hold
+
+
+@app.put('/put.on_hold/{state}')
+def clear_onHold(state: str):
+    try:
+        res = query_put(
+            "UPDATE product SET on_hold ='N' WHERE on_hold = %s", (state,))
+        return {"message": 200, "status": "on hold has change!"}
+    except Exception as err:
+        return {"message": err, "status": "somthing went worng !"}
+
+
+# count
+    # borrow
+
+
+@app.get('/count.borrow')
+def get_count_borrow():
+
+    try:
+        res = query_get("""SELECT 
+        COUNT(*) AS ทั้งหมด,
+        COUNT(CASE WHEN DEL_FRAG = 'Y' THEN 1 END) AS คืนแล้ว,
+        COUNT(CASE WHEN DEL_FRAG = 'N' THEN 1 END) AS ยังไม่คืน
+        FROM borrow;""")
+
+        return {"message": 200, "data": res}
+
+    except Exception as err:
+
+        return {"message": err, "status": "somthing went wrong!!"}
+
+
+@app.get('/count.product')
+def get_count_product():
+
+    try:
+        res = query_get("""SELECT 
+    COUNT(CASE WHEN DEL_FRAG = 'N' THEN 1 END) AS ทั้งหมด,
+    COUNT(CASE WHEN STATUS_ID = 6 AND DEL_FRAG = 'N' THEN 1 END) AS ว่าง,
+    COUNT(CASE WHEN STATUS_ID = 7 AND DEL_FRAG = 'N' THEN 1 END) AS ถูกยืม
+FROM product;""")
+
+        return {"message": 200, "data": res}
+
+    except Exception as err:
+
+        return {"message": err, "status": "somthing went wrong!!"}
+
+
+# getstudent id
+
+
+@app.get('/get.std/{id}')
+def get_std_id(id: int):
+    try:
+        rows = query_get(
+            f"SELECT * FROM student WHERE STUDENT_ID = {id} and DEL_FRAG = 'N' and RECORD_STATUS = 'A'")
+        return {"message": 200, "data": rows}
+    except Exception as err:
+        return {"message": err, "status": "somthing went wrong!!"}
+
+
+class editStudent(BaseModel):
+    STUDENT_ID: int
+    STUDENT_NAME: str
+    STUDENT_CODE: str
+    STUDENT_MAJOR: str
+    STUDENT_FACULTY: str
+
+
+@app.put('/put.student')
+def put_studentInfo(data: editStudent):
+    try:
+        res = query_put("UPDATE student SET  STUDENT_NAME = %s , STUDENT_CODE = %s, STUDENT_MAJOR = %s, STUDENT_FACULTY = %s WHERE STUDENT_ID = %s",
+                        (data.STUDENT_NAME, data.STUDENT_CODE, data.STUDENT_MAJOR, data.STUDENT_FACULTY, data.STUDENT_ID,))
+        return {"msg": "student info has change", "status": 200}
+    except Exception as err:
+        return {"message": err, "status": "somthing went wrong!!"}
+
+
+class CSVFile(BaseModel):
+    file: str  # Base64-encoded file content
+
+
+@app.post("/upload-csv")
+async def upload_csv(data: CSVFile):
+
+    try:
+        base64_str = data.file.split(",")[1]
+        file_bytes = base64.b64decode(base64_str)
+        file_like = io.BytesIO(file_bytes)
+        encodings = ['utf-8', 'ISO-8859-1', 'latin1']
+        csv_data = None
+        for encoding in encodings:
+            try:
+                file_like.seek(0)
+                csv_reader = csv.reader(
+                    io.TextIOWrapper(file_like, encoding=encoding))
+                csv_data = [row for row in csv_reader]
+                break
+            except UnicodeDecodeError:
+                continue
+
+        if csv_data is None:
+            return {"error": "Unable to decode the file with available encodings"}
+
+        # for i in range(len(csv_data)):
+        #     res = query_post(
+        #     "INSERT INTO student (STUDENT_NAME,STUDENT_CODE) VALUES ( %s,%s)", (csv_data[i][2],csv_data[i][1],), 'update')
+        # return {"msg": 200 }
+        for i in range(len(csv_data)):
+            res = query_post(
+                "INSERT INTO student (STUDENT_NAME,STUDENT_CODE,STUDENT_MAJOR,STUDENT_FACULTY) VALUES ( %s,%s,%s,%s)", (csv_data[i][2], csv_data[i][1], csv_data[i][3], csv_data[i][4],), 'update')
+        return {"msg": 200}
+
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get('/get.borrow.count/{id}')
+def get_borrow_count(id : int):
+
+    try:
+        res = query_get(f"SELECT COUNT(CASE WHEN PRODUCT_ID = {id} AND DEL_FRAG = 'Y' THEN 1 END) AS ถูกยืมไปแล้ว FROM borrow")
         
-    if not rows:
-        # raise HTTPException(status_code=204, status = "Incorrect username or password")
-        return {"message": 204,"status" : "Incorrect username or password"}
-    else:  
-        for row in rows:
-            lst ={
-                "USER_USER" : row[1],
-                "USER_PW" : row[2],
-                "USER_NAME" : row[3]
-            }
-
-        return {"message":200,"status": "Success","list":lst}
-
-
-# __________________________________________ count _________________________________________________
-# all
-
-@app.get('/count/{text}')
-def get_count(text:str):
+        return res
+    except Exception as err:
+        return err
     
-    def all():
-        cnx = get_DB()
-        cursor = cnx.cursor()
-
-        sql_update_query = "SELECT COUNT(*) FROM borrow WHERE RECORD_STATUS ='A'"
-        cursor.execute(sql_update_query)
-
-
-        rows = cursor.fetchall()
-        cursor.close()
-        cnx.close()
-
-        lst = []
-            
-        for row in rows:
-            lst = {
-                "count" : row[0]
-            }
-
-        return {"message":200,"status": "Success","list":lst}
-    
-    def returned():
-        cnx = get_DB()
-        cursor = cnx.cursor()
-
-        sql_update_query = "SELECT COUNT(*) FROM borrow WHERE RECORD_STATUS ='A' and DEL_FRAG ='Y'"
-        cursor.execute(sql_update_query)
-
-
-        rows = cursor.fetchall()
-        cursor.close()
-        cnx.close()
-
-        lst = []
-            
-        for row in rows:
-            lst = {
-                "count" : row[0]
-            }
-
-        return {"message":200,"status": "Success","list":lst}
-    def not_returned():
-        cnx = get_DB()
-        cursor = cnx.cursor()
-
-        sql_update_query = "SELECT COUNT(*) FROM borrow WHERE RECORD_STATUS ='A' and DEL_FRAG ='N'"
-        cursor.execute(sql_update_query)
-
-
-        rows = cursor.fetchall()
-        cursor.close()
-        cnx.close()
-
-        lst = []
-            
-        for row in rows:
-            lst = {
-                "count" : row[0]
-            }
-
-        return {"message":200,"status": "Success","list":lst}
-    
-    if text == 'all':
-       return all()
-    elif text == 'returned':
-       return returned()
-    elif text == 'not_returned':
-       return not_returned()
-    else:
-        return {"status": 'error','message':'ไม่พบข้อมูล'}
-    
-    
-    #testpush
-    
-    
-    # IMG
-    
-    # post img 
-    
-    
-@app.get("/get_img/{id}")
-def get_imgs(id: int):
-    cnx = get_DB()
-    cursor = cnx.cursor()
-    
-    query = "SELECT * FROM img WHERE P_ID = %s and RECORD_STATUS = 'A' and DEL_FRAG = 'N'"
-    cursor.execute(query, (id,))
-
-    rows = cursor.fetchall()
-    cursor.close()
-    cnx.close()
-
-    lst = {}
-
-    for row in rows:
-        lst = {
-                "IMG_ID": row[0],
-                "IMG_NAME": row[1],
-                "P_ID": row[2],
-                "RECORD_STATUS": row[3],
-                "DEL_FRAG": row[4],
-                "CREATE_DATE": row[5],
-                "UPDATE_DATE": row[6],
-            }
-            
-
-    return lst
-
-
-# @app.get('/conv')
-# def conv():
-#     img_data = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAgEASABIAAD..."
-#     img_data = img_data.split(",")[1]  # ตัดข้อมูล header
-#     with open("output.jpg", "wb") as f:
-#         f.write(base64.b64decode(img_data))
-
-
+@app.get('/get.borrow/product_id/{id}')
+def get_borrow_id(id:int):
+    try:
+        res = query_get(f"SELECT * FROM borrow WHERE PRODUCT_ID = {id} and DEL_FRAG = 'Y'")
+        return res
+    except Exception as err :
+        return err
